@@ -1080,11 +1080,82 @@
 
         let allFutures = [];
         let allSpot = [];
-        let userAlerts = JSON.parse(localStorage.getItem('cryptoAlerts')) || [];
+        let userAlerts = [];
         let currentAlertFilter = 'active';
         let alertCooldowns = {};
         let apiManager;
         
+        // Проверка поддержки localStorage
+        if (!window.localStorage) {
+            alert("Ваш браузер не поддерживает localStorage. Функция сохранения алертов недоступна.");
+        }
+
+        // Сохраняем состояние приложения
+        function saveAppState() {
+            try {
+                // Сохраняем алерты
+                localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+                
+                // Сохраняем текущий фильтр
+                localStorage.setItem('alertFilter', currentAlertFilter);
+                
+                // Сохраняем настройки Telegram
+                const telegramCheckbox = document.getElementById('telegram');
+                const tgSettings = {
+                    chatId: localStorage.getItem('tg_chat_id'),
+                    enabled: telegramCheckbox ? telegramCheckbox.checked : false
+                };
+                localStorage.setItem('tgSettings', JSON.stringify(tgSettings));
+                
+                console.log("Состояние сохранено");
+                return true;
+            } catch (error) {
+                console.error("Ошибка при сохранении состояния:", error);
+                return false;
+            }
+        }
+
+        // Загружаем состояние приложения
+        function loadAppState() {
+            try {
+                // Загружаем алерты
+                const savedAlerts = localStorage.getItem('cryptoAlerts');
+                if (savedAlerts) {
+                    userAlerts = JSON.parse(savedAlerts);
+                }
+                
+                // Загружаем фильтр
+                const savedFilter = localStorage.getItem('alertFilter');
+                if (savedFilter) {
+                    currentAlertFilter = savedFilter;
+                }
+                
+                // Загружаем настройки Telegram
+                const tgSettings = JSON.parse(localStorage.getItem('tgSettings') || '{}');
+                if (tgSettings.chatId) {
+                    localStorage.setItem('tg_chat_id', tgSettings.chatId);
+                    const userChatId = document.getElementById('userChatId');
+                    if (userChatId) {
+                        userChatId.value = tgSettings.chatId;
+                        userChatId.classList.remove('hidden');
+                    }
+                }
+                
+                if (tgSettings.enabled !== undefined) {
+                    const telegramCheckbox = document.getElementById('telegram');
+                    if (telegramCheckbox) {
+                        telegramCheckbox.checked = tgSettings.enabled;
+                    }
+                }
+                
+                console.log("Состояние загружено");
+                return true;
+            } catch (error) {
+                console.error("Ошибка при загрузке состояния:", error);
+                return false;
+            }
+        }
+
         class BinanceAPIManager {
             constructor() {
                 this.connectionState = {
@@ -1483,38 +1554,44 @@
         }
         
         async function addUserAlert(symbol, type, condition, value, notificationMethods, notificationCount, chatId) {
-            // Проверяем наличие подключения для Telegram
-            if (notificationMethods.includes('telegram')) {
-                const savedChatId = localStorage.getItem('tg_chat_id') || chatId;
-                if (!savedChatId) {
-                    showBotConnectionHint();
-                    return false;
+            try {
+                // Проверяем наличие подключения для Telegram
+                if (notificationMethods.includes('telegram')) {
+                    const savedChatId = localStorage.getItem('tg_chat_id') || chatId;
+                    if (!savedChatId) {
+                        showBotConnectionHint();
+                        return false;
+                    }
                 }
+                
+                const marketType = getMarketTypeBySymbol(symbol);
+                
+                const newAlert = {
+                    id: Date.now(),
+                    symbol,
+                    type,
+                    condition,
+                    value: parseFloat(value),
+                    notificationMethods,
+                    notificationCount: parseInt(notificationCount),
+                    chatId: notificationMethods.includes('telegram') ? (localStorage.getItem('tg_chat_id') || chatId) : null,
+                    triggeredCount: 0,
+                    createdAt: new Date().toISOString(),
+                    triggered: false,
+                    lastNotificationTime: 0,
+                    marketType
+                };
+                
+                userAlerts.push(newAlert);
+                saveAppState();
+                
+                loadUserAlerts(currentAlertFilter);
+                return true;
+            } catch (error) {
+                console.error("Ошибка при добавлении алерта:", error);
+                showNotification('Ошибка', 'Не удалось создать алерт');
+                return false;
             }
-            
-            const marketType = getMarketTypeBySymbol(symbol);
-            
-            const newAlert = {
-                id: Date.now(),
-                symbol,
-                type,
-                condition,
-                value: parseFloat(value),
-                notificationMethods,
-                notificationCount: parseInt(notificationCount),
-                chatId: notificationMethods.includes('telegram') ? (localStorage.getItem('tg_chat_id') || chatId) : null,
-                triggeredCount: 0,
-                createdAt: new Date().toISOString(),
-                triggered: false,
-                lastNotificationTime: 0,
-                marketType
-            };
-            
-            userAlerts.push(newAlert);
-            localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
-            
-            loadUserAlerts(currentAlertFilter);
-            return true;
         }
         
         function loadUserAlerts(filter = 'active') {
@@ -1522,6 +1599,7 @@
             if (!alertsContainer) return;
             
             currentAlertFilter = filter;
+            saveAppState();
             
             document.querySelectorAll('.compact-filter-btn').forEach(btn => {
                 btn.classList.remove('bg-blue-900', 'text-blue-300');
@@ -1642,7 +1720,7 @@
         function deleteAlert(alertId) {
             if (confirm('Вы уверены, что хотите удалить этот алерт?')) {
                 userAlerts = userAlerts.filter(alert => alert.id !== alertId);
-                localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+                saveAppState();
                 loadUserAlerts(currentAlertFilter);
                 showNotification('Успешно', 'Алерт удален');
             }
@@ -1651,7 +1729,7 @@
         function clearAllAlerts() {
             if (confirm('Вы уверены, что хотите удалить все алерты?')) {
                 userAlerts = [];
-                localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+                saveAppState();
                 loadUserAlerts(currentAlertFilter);
                 showNotification('Успешно', 'Все алерты удалены');
             }
@@ -1792,7 +1870,7 @@
             const updatedAlert = {
                 id: parseInt(alertId),
                 symbol,
-                type: alertType,
+                type,
                 condition,
                 value: parseFloat(value),
                 notificationMethods,
@@ -1806,7 +1884,7 @@
             };
             
             userAlerts = userAlerts.map(a => a.id === parseInt(alertId) ? updatedAlert : a);
-            localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+            saveAppState();
             
             if (useEmail) {
                 localStorage.setItem('userEmail', userEmail);
@@ -1864,7 +1942,7 @@
                             }
                             
                             userAlerts = userAlerts.map(a => a.id === alert.id ? alert : a);
-                            localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+                            saveAppState();
                             
                             // Show notification in UI
                             showNotification('Алерт сработал', `Символ: ${alert.symbol}\nУсловие: ${alert.condition} ${alert.value}\nТекущая цена: ${price}`);
@@ -1910,7 +1988,9 @@
                     try {
                         // Сохраняем chat_id в localStorage
                         localStorage.setItem('tg_chat_id', chatId);
+                        localStorage.setItem('tg_enabled', 'true');
                         userChatId.value = chatId;
+                        saveAppState();
                         closeTelegramSettings();
                         closeBotConnectionHint();
                         showNotification('Успех', 'Бот успешно подключен! Теперь вы можете создавать алерты с Telegram уведомлениями.');
@@ -2010,6 +2090,9 @@
                         userChatId.classList.add('hidden');
                         userChatId.required = false;
                     }
+                    
+                    localStorage.setItem('tg_enabled', this.checked);
+                    saveAppState();
                 });
             }
             
@@ -2101,7 +2184,7 @@
                         };
                         
                         userAlerts = userAlerts.map(a => a.id === parseInt(editAlertId) ? updatedAlert : a);
-                        localStorage.setItem('cryptoAlerts', JSON.stringify(userAlerts));
+                        saveAppState();
                         
                         if (useEmail) {
                             localStorage.setItem('userEmail', userEmail);
@@ -2233,6 +2316,7 @@
             
             try {
                 await apiManager.init();
+                loadAppState();
                 setupEventListeners();
                 await loadMarketData();
                 loadUserAlerts(currentAlertFilter);
