@@ -13,13 +13,13 @@
         
         body {
             font-family: 'JetBrains Mono', monospace;
-            height: 100vh; /* Занимает всю высоту экрана */
-            overflow: hidden; /* Убирает прокрутку тела */
+            height: 100vh;
+            overflow: hidden;
         }
         
         .nav-container {
             background: #1E1E1E;
-            height: 50px; /* Фиксированная высота меню */
+            height: 50px;
             width: 100%;
             position: fixed;
             top: 0;
@@ -28,6 +28,7 @@
             display: flex;
             align-items: center;
             padding: 0 20px;
+            justify-content: space-between;
         }
         
         .nav-content {
@@ -48,10 +49,53 @@
             background: #333;
         }
         
+        .auth-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        
+        .auth-button:hover {
+            background: #333;
+        }
+        
+        .auth-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .auth-dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #1E1E1E;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .auth-dropdown-content a {
+            color: white;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        
+        .auth-dropdown-content a:hover {
+            background-color: #333;
+        }
+        
         .content-wrapper {
-            padding-top: 50px; /* Отступ под меню */
-            height: 100vh; /* Занимает всю высоту */
-            width: 100vw; /* Занимает всю ширину */
+            padding-top: 50px;
+            height: 100vh;
+            width: 100vw;
         }
         
         #contentFrame {
@@ -69,6 +113,14 @@
             <a class="nav-link" onclick="loadPage('charts')">Графики</a>
             <a class="nav-link" onclick="loadPage('widget')">Виджет</a>
         </div>
+        
+        <div class="auth-dropdown" id="authDropdown">
+            <button class="auth-button" id="authButton">Вход/Регистрация</button>
+            <div class="auth-dropdown-content" id="authDropdownContent">
+                <a href="#" onclick="alert('Форма входа будет здесь')">Войти</a>
+                <a href="#" onclick="alert('Форма регистрации будет здесь')">Зарегистрироваться</a>
+            </div>
+        </div>
     </nav>
     
     <div class="content-wrapper">
@@ -80,6 +132,28 @@
             const frame = document.getElementById('contentFrame');
             frame.src = `${page}.html`;
         }
+
+        // Обработка клика по кнопке "Вход/Регистрация"
+        document.addEventListener('DOMContentLoaded', function() {
+            const authButton = document.getElementById('authButton');
+            const dropdownContent = document.getElementById('authDropdownContent');
+
+            authButton.addEventListener('click', function(e) {
+                e.stopPropagation(); // Чтобы клик не триггерил document.onclick
+                dropdownContent.style.display = 
+                    dropdownContent.style.display === 'block' ? 'none' : 'block';
+            });
+
+            // Закрытие меню при клике вне его области
+            document.addEventListener('click', function() {
+                dropdownContent.style.display = 'none';
+            });
+
+            // Чтобы меню не закрывалось при клике внутри него
+            dropdownContent.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
     </script>
 </body>
 </html>
